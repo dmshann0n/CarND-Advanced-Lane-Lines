@@ -29,9 +29,10 @@ def calc_fit_x(y, x, plot_y):
 
 class Line:
     """ Stores state for a single detected line (i.e., from one frame """
-    def __init__(self, fit_x, plot_y):
+    def __init__(self, fit_x, plot_y, search_area):
         self.fit_x = fit_x
         self.plot_y = plot_y
+        self.search_area = search_area
 
         self.points = np.transpose(np.vstack([fit_x, plot_y]))
 
@@ -82,6 +83,9 @@ class LineHistory:
 
         self._base_x_avg_start = base_x_avg * (1 - self.AVG_THRESHOLD)
         self._base_x_avg_end = base_x_avg * (1 + self.AVG_THRESHOLD)
+
+    def has_last(self):
+        return len(self._queue) > 0
 
     def last(self):
         return self._queue[-1]
@@ -217,7 +221,30 @@ class LaneFinder:
 
         height = img.shape[0]
 
-        histogram = np.sum(img[height//2:, :], axis=0)
+
+        search_img = None
+        # if we have history, let's use the last line 'search plots'
+        # as a mask. this should be the common case!
+        if self.left_history.has_last() and self.right_history.has_last():
+            mask = np.zeros_like(img)
+
+            cv2.fillPoly(
+                mask,
+                np.int_([self.left_history.last().search_area]),
+                255)
+
+            cv2.fillPoly(
+                mask,
+                np.int_([self.right_history.last().search_area]),
+                255)
+
+            search_img = cv2.bitwise_and(img, mask)
+
+        else:
+            # otherwise use our default image
+            search_img = img
+
+        histogram = np.sum(search_img[height//2:, :], axis=0)
         self.plot.plot_chart(histogram)
 
         out_img = np.dstack((img, img, img))*255
@@ -294,8 +321,8 @@ class LaneFinder:
 
         self.plot.plot_images(search_lines_img)
 
-        left_line = Line(left_fit, plot_y)
-        right_line = Line(right_fit, plot_y)
+        left_line = Line(left_fit, plot_y, left_line_search)
+        right_line = Line(right_fit, plot_y, right_line_search)
 
         if not self.left_history.base_x_reasonable(left_line.base_x):
             log.debug(f'left x out of range ({left_line.base_x})')
