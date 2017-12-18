@@ -81,7 +81,6 @@ The methods `_calc_start_region_of_interest` and `_calc_birds_eye_region` genera
 
 The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
 
-
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
 ![alt text][image4]
@@ -96,7 +95,7 @@ The resulting histogram was plotted as follows:
 
 ![alt text][image2]
 
-The peaks of this histogram were used as a starting point for calculating windows, which was based on the lesson sample. After finding the window, the pixels in the windows were used to fit a line for each lane. (The `left_line_search` and `right_line_search` variables could be used to narrow the region of interest for future lane searches, but I didn't get to finish that!)
+The peaks of this histogram were used as a starting point for calculating windows, which was based on the lesson sample. After finding the window, the pixels in the windows were used to fit a line for each lane. The `left_line_search` and `right_line_search` variables are used to narrow the region of interest for future lane searches.
 
 Lane finding history is stored in the `LaneHistory` class. There is an instance of this class for both left and right lane history. `LaneHistory` objects are responsible for identifying lanes that fall out of the margin of error (10% change from average). 
 
@@ -126,8 +125,8 @@ Here's a [link to my video result](./project_video_with_lanes.mp4)
 
 There are many opportunities to improve this implementation.
 
-* The lane history collected is underutilized. It could be used to look for a lane in a specific area, which helps handle issues from different lighting or road coloring (e.g., areas of asphalt vs concrete) that disrupt the lane finding. This issue was observed in the challenge video.
+* The lane history collected is underutilized. It is being used to look for a lane in a specific area, which helps handle issues from different lighting or road coloring (e.g., areas of asphalt vs concrete) that disrupt the lane finding. There could be more intelligent fallback if this fails to find a lane in the search area.
 
-* The lighting conditions in the hardest challenge video posed a problem, as both the driver and the camera were blinded at times by direct sunlight. This obscured the road. Human drivers have similar challenges but are able to adjust their perspective/wear sunglasses :)
+* The lighting conditions in the hardest challenge video posed a problem, as both the driver and the camera were blinded at times by direct sunlight, obscuring the road. Human drivers have similar challenges but are able to adjust their perspective/wear sunglasses :)
 
 * The hardest challenge video also had curves present where the right lane line was obscured by the vehicle. The pipeline could predict where the lane is based on the left lane and past history where there are brief gaps of vision.
