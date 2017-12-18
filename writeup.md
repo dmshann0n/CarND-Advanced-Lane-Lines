@@ -109,6 +109,10 @@ Given the lines identified above, filling the identified lane area was a matter 
 
 ![alt text][image6]
 
+![alt text][image7]
+
+![alt text][image8]
+
 ---
 
 ### Pipeline (video)
