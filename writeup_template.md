@@ -19,12 +19,14 @@ The goals / steps of this project are the following:
 
 [//]: # (Image References)
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
+[image1]: ./output_images/distortion_correction.png "Undistorted"
+[image2]: ./output_images/histogram.png "Histogram sample for lane finding"
+[image3]: ./output_images/threshold_normal_perspective.png "Binary example, normal perspective"
+[image4]: ./output_images/perspective_before_gradient.png "Birds-eye perspective transform"
+[image5]: ./output_images/perspective_transform.png "Combined perspective + binary example"
+[image6]: ./output_images/lanes_in_perspective.png "Lanes with lines in perspective"
+[image7]: ./output_images/lane_identified_in_perspective.png "Lane filled"
+[image8]: ./output_images/straight_combined.png "Output"
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
 
