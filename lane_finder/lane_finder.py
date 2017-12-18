@@ -255,9 +255,9 @@ class LaneFinder:
 
             # Identify the nonzero pixels in x and y within the window
             good_left_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
-            (nonzero_x >= win_xleft_low) &  (nonzero_x < win_xleft_high)).nonzero()[0]
+                (nonzero_x >= win_xleft_low) &  (nonzero_x < win_xleft_high)).nonzero()[0]
             good_right_inds = ((nonzero_y >= win_y_low) & (nonzero_y < win_y_high) &
-            (nonzero_x >= win_xright_low) &  (nonzero_x < win_xright_high)).nonzero()[0]
+                (nonzero_x >= win_xright_low) &  (nonzero_x < win_xright_high)).nonzero()[0]
             # Append these indices to the lists
             left_lane_indices.append(good_left_inds)
 
@@ -346,6 +346,11 @@ class LaneFinder:
     def find_lanes(self, frame):
 
         undistorted = self.calibrator.undistort(frame)
+
+        self.plot.plot_images(
+            undistorted,
+            self._convert_to_color_gradient_threshold(undistorted))
+
         birds_eye = self._transform_to_birds_eye(undistorted)
 
         binary_warped = self._convert_to_color_gradient_threshold(birds_eye)
