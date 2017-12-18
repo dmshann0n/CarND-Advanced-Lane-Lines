@@ -8,6 +8,7 @@
 import glob
 import logging as log
 import os
+import pickle
 
 import cv2
 import numpy as np
@@ -46,6 +47,11 @@ class CameraCalibration():
     def undistort(self, img):
         """ Given an image, uses calibration settings to undistort """
 
+        img = img.copy()
+
+        if not self._configured:
+            self.config()
+
         h, w = img.shape[:2]
         new_mtx, roi = cv2.getOptimalNewCameraMatrix(
             self._mtx,
@@ -58,9 +64,26 @@ class CameraCalibration():
         x, y, w, h = roi
         dst = dst[y:y+h, x:x+w]
 
-        self.plot.plot(img, dst)
+        self.plot.plot_images(img, dst)
 
         return dst
+
+    def to_pickle(self, path):
+        log.debug(f'Pickling config to {path}')
+
+        if not self._configured:
+            self.config()
+
+        data = {'mtx': self._mtx, 'dist': self._dist}
+        pickle.dump(data, open(path, 'wb'))
+
+    def from_pickle(self, path):
+        log.debug(f'Loading config from {path}')
+
+        config_pickle = pickle.load(open(path, 'rb'))
+        self._mtx = config_pickle['mtx']
+        self._dist = config_pickle['dist']
+        self._configured = True
 
     def config(self):
         """ Configures this instance for undistoring images based on the
@@ -100,7 +123,7 @@ class CameraCalibration():
             obj_points.append(points)
             img_points.append(corners)
 
-            self.plot.plot(
+            self.plot.plot_images(
                 img,
                 lambda: cv2.drawChessboardCorners(img, (CORNERS_X, CORNERS_Y), corners, found))
 
