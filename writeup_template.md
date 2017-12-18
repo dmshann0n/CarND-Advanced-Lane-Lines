@@ -56,46 +56,33 @@ Commands:
 
 The code for camera calibration is in lane_finder/camera_calibration.py. The class `CameraCalibration` encapsulates configuration, settings, and future undistortion. Because configuration is a time consuming operation, the `CameraCalibration` class also allows it's configuration to be pickled (via `to_pickle`).
 
-![alt text][image1]
+Calling `CameraCalibration.config` creates the matrix and distortion coefficients. For each image located in the camera_cal directory, the corners of the chessboard are identified and the object points and corners are appended to a list (`obj_points` and `img_points` respectively) for the entire set. After iterating through the set, cv2.calibrateCamera is called and the class sets itself to configured.
+
+The `CameraCalibration.undistort` method uses this configuration to undistort images using the cv2.undistort function and then crops the image based on the rectangular outline returned. If the camera calibration is not yet configured, it can be configured lazily.
 
 ### Pipeline (single images)
 
 #### 1. Provide an example of a distortion-corrected image.
 
 To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+![alt text][image1]
+
+Note the second has been cropped after 'undistortion'.
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines 137 through 167 in `lane_finder.py`, method: `_convert_to_color_gradient_threshold`).  Here's an example of my output for this step:
 
 ![alt text][image3]
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
+The `LaneFinder` class creates matrix for perspective transform and the reverse transform upon initialization (in the `init_perspective_xforms` method). These matrices are later used by `_transform_to_birds_eye` and `_transform_from_birds_eye` -- methods that wrap the call to `cv2.warpPerspective` using the appropriate transformation matrix.
+
+The methods `_calc_start_region_of_interest` and `_calc_birds_eye_region` generate the appropriate polygons for mapping via `cv2.getPerspectiveTransform`. The angles of the trapezoid generated in `_calc_start_region_of_interest` are based on measurement of the test image -- this is a somewhat brittle approach, as it doesn't correct for the position of the vehicle in the lane. However, for this exercise it provided reasonable results.
+
 The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
 
-```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
-```
-
-This resulted in the following source and destination points:
-
-| Source        | Destination   |
-|:-------------:|:-------------:|
-| 585, 460      | 320, 0        |
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
 
 I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
 
@@ -103,17 +90,25 @@ I verified that my perspective transform was working as expected by drawing the 
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+Lane line pixels were identified first by taking a histogram of an image formatted as such:
 
 ![alt text][image5]
 
+The resulting histogram was plotted as follows:
+
+![alt text][image2]
+
+The peaks of this histogram were used as a starting point for calculating windows, which was based on the lesson sample. After finding the window, the pixels in the windows were used to fit a line for each lane. (The `left_line_search` and `right_line_search` variables could be used to narrow the region of interest for future lane searches, but I didn't get to finish that!)
+
+Lane finding history is stored in the `LaneHistory` class. There is an instance of this class for both left and right lane history. `LaneHistory` objects are responsible for identifying lanes that fall out of the margin of error (10% change from average). 
+
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+The calculation for curvature of the lane is in `Line.curve` in `lane_finder.py`. This closely follows the sample -- it takes the polynomial for the line and the y plots, while converting it to approximate meters (using the conversion from 
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+Given the lines identified above, filling the identified lane area was a matter of merging the left and right lines into a polygon, and filling that polygon. The return value of `_detect_lane_lines` is an image containing the filled polygon in the warped perspective. To apply it to the current 'world space' frame the perspective change is reversed using the previously initialized reverse matrix.
 
 ![alt text][image6]
 
@@ -131,4 +126,10 @@ Here's a [link to my video result](./project_video_with_lanes.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.
+There are many opportunities to improve this implementation.
+
+* The lane history collected is underutilized. It could be used to look for a lane in a specific area, which helps handle issues from different lighting or road coloring (e.g., areas of asphalt vs concrete) that disrupt the lane finding. This issue was observed in the challenge video.
+
+* The lighting conditions in the hardest challenge video posed a problem, as both the driver and the camera were blinded at times by direct sunlight. This obscured the road. Human drivers have similar challenges but are able to adjust their perspective/wear sunglasses :)
+
+* The hardest challenge video also had curves present where the right lane line was obscured by the vehicle. The pipeline could predict where the lane is based on the left lane and past history where there are brief gaps of vision.
