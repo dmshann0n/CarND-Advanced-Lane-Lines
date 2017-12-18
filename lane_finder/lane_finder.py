@@ -3,6 +3,18 @@ import logging as log
 import cv2
 import numpy as np
 
+
+""" steps:
+    1) camera calibration               ✅
+    2) distortion correction            ✅
+    3) color/gradient threshold         ✅
+    4) perspective transform            ✅
+    5) detect lane lines                ✅
+    6) determine curvature              ✅
+    7) DRAW LINES!!                     ✅
+    8) measure our position in the lane ✅
+"""
+
 def annotate_image(img, points):
     return cv2.polylines(
         img.copy(),
@@ -15,20 +27,78 @@ def calc_fit_x(y, x, plot_y):
     fit_x = fit[0]*plot_y**2 + fit[1]*plot_y + fit[2]
     return fit_x
 
+class Line:
+    """ Stores state for a single detected line (i.e., from one frame """
+    def __init__(self, fit_x, plot_y):
+        self.fit_x = fit_x
+        self.plot_y = plot_y
+
+        self.points = np.transpose(np.vstack([fit_x, plot_y]))
+
+        # take the LAST index -- which is going to be 620 (the bottom of the img)
+        # then take the first ordinal of that so we get the actual x coord
+        self.base_x = self.points[-1][0]
+
+    # this is done somewhat more gracefully for finding lane position..
+    Y_METERS_PER_PX = 30/720 # meters per pixel in y dimension
+    X_METERS_PER_PX = 3.7/700 # meters per pixel in x dimension
+
+    def curve(self):
+        """ Returns the curve of this line in pixels """
+        y_eval = np.max(self.plot_y)
+
+        fit_m = np.polyfit(self.plot_y * self.Y_METERS_PER_PX, self.fit_x * self.X_METERS_PER_PX, 2)
+        return ((1 + (2 * fit_m[0] * y_eval * self.Y_METERS_PER_PX + fit_m[1])**2)**1.5) / np.absolute(2*fit_m[0])
+
+class LineHistory:
+    """ Maintains state for the last MAX_QUEUE lines """
+
+    MAX_QUEUE = 10
+    AVG_THRESHOLD = .1
+
+    def __init__(self):
+        # python arrays can fake queue features (albeit slowly)
+        # shouldn't matter with only 10ish items in it
+        self._queue = []
+
+        self._base_x_avg_start = None
+        self._base_x_avg_end = None
+
+    def base_x_reasonable(self, base_x_test):
+        if not self._base_x_avg_start or not self._base_x_avg_end:
+            # if there's no history then we'll assume it's safe!
+            return True
+
+        return base_x_test > self._base_x_avg_start and base_x_test < self._base_x_avg_end
+
+    def _pre_calc(self):
+        """ Pre-calculates data about history for use in later frames """
+
+        base_x = []
+        for item in self._queue:
+            base_x.append(item.base_x)
+
+        base_x_avg = np.mean(base_x)
+
+        self._base_x_avg_start = base_x_avg * (1 - self.AVG_THRESHOLD)
+        self._base_x_avg_end = base_x_avg * (1 + self.AVG_THRESHOLD)
+
+    def last(self):
+        return self._queue[-1]
+
+    def push(self, line):
+        self._queue.append(line)
+
+        if len(self._queue) > self.MAX_QUEUE:
+            self._queue.pop(0)
+
+        self._pre_calc()
+
+
+
 class LaneFinder:
     """ Calculates the location of a lane given a single frame using data
     extracted from the image and previous lane state """
-
-    """ steps:
-        1) camera calibration               ✅
-        2) distortion correction            ✅
-        3) color/gradient threshold         ✅
-        4) perspective transform            ✅
-        5) detect lane lines
-        6) determine curvature
-        7) DRAW LINES!!
-        8) measure our position in the lane
-    """
 
     # dimensions for a distortion corrected frame
     # these are used to determine the initial search trapezoid
@@ -47,6 +117,10 @@ class LaneFinder:
         self.perspective_mtrx_rev = None
 
         self.init_perspective_xforms()
+
+        self.last = None
+        self.left_history = LineHistory()
+        self.right_history = LineHistory()
 
     def init_perspective_xforms(self):
         """ Initializes the matrices for perspective warping
@@ -220,16 +294,29 @@ class LaneFinder:
 
         self.plot.plot_images(search_lines_img)
 
-        left_line = np.array([np.transpose(np.vstack([left_fit, plot_y]))])
-        right_line = np.array([np.flipud(np.transpose(np.vstack([right_fit, plot_y])))])
+        left_line = Line(left_fit, plot_y)
+        right_line = Line(right_fit, plot_y)
 
-        full_poly = np.hstack([left_line, right_line])
+        if not self.left_history.base_x_reasonable(left_line.base_x):
+            log.debug(f'left x out of range ({left_line.base_x})')
+            return None
+
+        if not self.right_history.base_x_reasonable(right_line.base_x):
+            log.debug(f'right x out of range ({left_line.base_x})')
+            return None
+
+        full_poly = np.hstack([
+            np.array([left_line.points]),
+            np.array([np.flipud(right_line.points)])])
 
         final_img = np.zeros_like(out_img)
         cv2.fillPoly(final_img, np.int_([full_poly]), (0, 255, 0))
 
         preview_img = cv2.addWeighted(out_img, 1, final_img, 0.3, 0)
         self.plot.plot_images(preview_img)
+
+        self.left_history.push(left_line)
+        self.right_history.push(right_line)
 
         return final_img
 
@@ -243,6 +330,19 @@ class LaneFinder:
 
         return np.hstack((left_line_window1, left_line_window2))
 
+    def _calculate_last_lane_position(self, undistorted):
+        left, right = self.left_history.last(), self.right_history.last()
+
+        total_lane = right.base_x - left.base_x
+        lane_midpoint = (( right.base_x - left.base_x ) / 2 ) + left.base_x
+        img_midpoint = undistorted.shape[1] // 2
+
+        diff_pixels = img_midpoint - lane_midpoint
+
+        # assuming 3.7m width of lane here..
+        return 3.7 * (diff_pixels / total_lane)
+
+
     def find_lanes(self, frame):
 
         undistorted = self.calibrator.undistort(frame)
@@ -255,11 +355,24 @@ class LaneFinder:
         self.plot.plot_images(
             undistorted,
             lambda: annotate_image(undistorted, self._calc_start_region_of_interest(height)),
-            birds_eye,
-            lambda: annotate_image(birds_eye, self._calc_birds_eye_region(height)),
-            binary_warped)
+            lambda: annotate_image(birds_eye, self._calc_birds_eye_region(height)))
 
-        lane_img = self._transform_from_birds_eye(self._detect_lane_lines(binary_warped))
+        lane_overlay = self._detect_lane_lines(binary_warped)
+
+        if lane_overlay is not None:
+            lane_img = self._transform_from_birds_eye(lane_overlay)
+            self.last = lane_img
+        else:
+            lane_img = self.last
+
+        font = cv2.FONT_HERSHEY_SIMPLEX
+
+        lane_position = self._calculate_last_lane_position(undistorted)
+        left_curvature = self.left_history.last().curve()
+        right_curvature = self.right_history.last().curve()
+
+        cv2.putText(undistorted, f'Lane Position: {lane_position:.2f}m from mid',(10, 100), font, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
+        cv2.putText(undistorted, f'Curvature: {left_curvature:.2f}m {right_curvature:.2f}m',(10, 150), font, 1.2, (255, 255, 255), 2, cv2.LINE_AA)
 
         result = cv2.addWeighted(undistorted, 1, lane_img, 0.3, 0)
         self.plot.plot_images(result)

@@ -22,7 +22,7 @@ DEFAULT_FILE_MASK = '*.jpg'
 CORNERS_X = 9
 CORNERS_Y = 6
 
-class CameraCalibration():
+class CameraCalibration:
     def __init__(self, plot, path=None, mask=None):
         if not path:
             path = DEFAULT_PATH

@@ -82,7 +82,6 @@ def full_run(video_path=None, show_plots=False):
 
     split_path = video_path.split('.')
     new_file = "".join([split_path[0], '_with_lanes.', split_path[1]])
-    print(new_file)
     updated.write_videofile(new_file, audio=False)
 
 if __name__ == '__main__':
