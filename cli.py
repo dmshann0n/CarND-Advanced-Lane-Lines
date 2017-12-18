@@ -17,7 +17,7 @@ CAMERA_CALIBRATION_PICKLE_PATH = 'camera_calibration.P'
 def init_logging():
     log.basicConfig(
         format='%(asctime)s %(message)s',
-        level=log.DEBUG)
+        level=log.INFO)
 
 def get_plotter(show_plots=False):
     PLOT.show_plots = show_plots
