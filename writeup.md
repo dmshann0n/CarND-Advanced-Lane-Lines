@@ -107,9 +107,7 @@ The calculation for curvature of the lane is in `Line.curve` in `lane_finder.py`
 
 Given the lines identified above, filling the identified lane area was a matter of merging the left and right lines into a polygon, and filling that polygon. The return value of `_detect_lane_lines` is an image containing the filled polygon in the warped perspective. To apply it to the current 'world space' frame the perspective change is reversed using the previously initialized reverse matrix.
 
-![alt text][image6]
-
-![alt text][image7]
+![alt text][image6]![alt text][image7]
 
 ![alt text][image8]
 
